@@ -4,6 +4,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.*;
 import java.net.Socket;
 
@@ -29,13 +31,15 @@ public class Client extends JFrame {
     private JButton turn = new JButton("턴종료");
     private JButton exit = new JButton("나가기");
 
-    private connectState connectState = new NotConnected();
+    private ConnectState connectState = new NotConnected();
     //초기 상태는 매칭전 상태.
+    private boolean isGameDisplayed = false; // 게임 화면 표시 여부
+    private boolean turnInProgress = false; // 현재 턴이 진행 중인지 여부
 
-    public void setConnectState(Client.connectState connectState){
+    public void setConnectState(ConnectState connectState){
         this.connectState = connectState;
     }
-    public Client.connectState getConnectState(){
+    public ConnectState getConnectState(){
         return this.connectState;
     }
 
@@ -85,7 +89,7 @@ public class Client extends JFrame {
                     login.setForeground(Color.GRAY);  // placeholder 색으로 변경
                 }
             }
-            });
+        });
         password.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
@@ -182,6 +186,7 @@ public class Client extends JFrame {
                 endGame();
             }
         });
+
         backTurn.setEnabled(false);
         turn.setEnabled(false);
         controlPanel.add(matching);
@@ -191,20 +196,133 @@ public class Client extends JFrame {
         return controlPanel;
     }
     public void startConnect(LoginData loginData) throws IOException {
-            socket = new Socket(address, Integer.parseInt(port));
-            ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-            oos.writeObject(loginData);
-            String msg;
-            br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-            while ((msg = br.readLine()) != null) {
-                if(msg.contains("님이 게임을 시작했습니다.")){
-                    startGame();
-                }
-                //매칭 방에 사람이 두명 이상 존재하면 바로 팀 매칭이 됨.
-                serverChat.append(msg+"\n");
+        socket = new Socket(address, Integer.parseInt(port));
+        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+        oos.writeObject(loginData);
+        String msg;
+        br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        while ((msg = br.readLine()) != null) {
+            if(msg.contains("님이 게임을 시작했습니다.")){
+                startGame();
             }
+            //매칭 방에 사람이 두명 이상 존재하면 바로 팀 매칭이 됨.
+            serverChat.append(msg+"\n");
+            displayDotAndBoxGame();
+        }
     }
+    private void displayDotAndBoxGame() {
+        JPanel gamePanel = new DotAndBoxGamePanel(5);
+
+        // 기존 중앙 패널을 모두 제거하고, 새로운 게임 패널 추가
+        this.getContentPane().removeAll();  // 모든 기존 컴포넌트 제거
+        this.getContentPane().add(gamePanel, BorderLayout.CENTER);  // 게임판을 중앙에 추가
+
+        // 채팅 패널을 오른쪽에 추가
+        this.getContentPane().add(serverChat, BorderLayout.EAST);
+
+        // 컨트롤 패널을 하단에 추가
+        this.getContentPane().add(controlPanel, BorderLayout.SOUTH);
+
+        // 레이아웃 갱신
+        this.revalidate();
+        this.repaint();
+
+        // 메시지는 처음 한 번만 출력
+        if (!isGameDisplayed) {
+            serverChat.append("게임 화면이 표시되었습니다.\n");
+            isGameDisplayed = true; // 플래그 업데이트
+        }
+    }
+
+    // DotAndBoxGamePanel 클래스
+    class DotAndBoxGamePanel extends JPanel {
+        private int gridSize;
+        private boolean[][] horizontalLines;
+        private boolean[][] verticalLines;
+        private boolean isPlayerTurn;  // 현재 플레이어 턴인지 여부
+
+        public DotAndBoxGamePanel(int gridSize) {
+            this.gridSize = gridSize;
+            this.horizontalLines = new boolean[gridSize][gridSize - 1];
+            this.verticalLines = new boolean[gridSize - 1][gridSize];
+            setPreferredSize(new Dimension(500, 500));
+            setBackground(Color.WHITE);
+            isPlayerTurn = true;  // 처음에 플레이어 턴으로 설정
+
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (isPlayerTurn) {  // 게임이 진행 중일 때만 선을 선택할 수 있음//xxxxxx
+                        handleMouseClick(e.getX(), e.getY());
+                    }
+                }
+            });
+        }
+
+        private void handleMouseClick(int x, int y) {
+            // 클릭된 위치에서 가장 가까운 선을 찾아서 활성화
+            int dotSpacing = 50;
+            int row = (y - 50) / dotSpacing;
+            int col = (x - 50) / dotSpacing;
+
+            // 클릭된 곳에서 선이 유효한지 확인하고 그리기
+            if (row >= 0 && row < gridSize - 1 && col >= 0 && col < gridSize - 1) {
+                if (horizontalLines[row][col] == false) {
+                    horizontalLines[row][col] = true;
+                    repaint();
+                }
+            }
+
+            // 현재 선을 그린 후, 턴 종료 버튼을 클릭할 수 있도록 처리
+            turn.setEnabled(true);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+
+            int dotSpacing = 50;
+            g.setColor(Color.BLACK);
+
+            // 그리드 점 그리기
+            for (int i = 0; i < gridSize; i++) {
+                for (int j = 0; j < gridSize; j++) {
+                    int x = 50 + j * dotSpacing;
+                    int y = 50 + i * dotSpacing;
+                    g.fillOval(x - 5, y - 5, 10, 10);  // 점 그리기
+                }
+            }
+
+            // 수평선 그리기
+            for (int i = 0; i < gridSize; i++) {
+                for (int j = 0; j < gridSize - 1; j++) {
+                    if (horizontalLines[i][j]) {
+                        int x1 = 50 + j * dotSpacing;
+                        int y1 = 50 + i * dotSpacing;
+                        int x2 = 50 + (j + 1) * dotSpacing;
+                        int y2 = 50 + i * dotSpacing;
+                        g.drawLine(x1, y1, x2, y2);  // 수평선 그리기
+                    }
+                }
+            }
+
+            // 수직선 그리기
+            for (int i = 0; i < gridSize - 1; i++) {
+                for (int j = 0; j < gridSize; j++) {
+                    if (verticalLines[i][j]) {
+                        int x1 = 50 + j * dotSpacing;
+                        int y1 = 50 + i * dotSpacing;
+                        int x2 = 50 + j * dotSpacing;
+                        int y2 = 50 + (i + 1) * dotSpacing;
+                        g.drawLine(x1, y1, x2, y2);  // 수직선 그리기
+                    }
+                }
+            }
+        }
+    }
+
+
     public void requestMatching(){
         connectState.requestMatching(this);
     }
@@ -215,14 +333,14 @@ public class Client extends JFrame {
         connectState.endGame(this);
     }
 
-    interface connectState {
+    interface ConnectState {
         public void endGame(Client client);
         public void requestMatching(Client client);
         public void startGame(Client client);
     }
     //연결상태에 따라 진행. 게임 진행을 어느 상태인지에 따라 관리함. -> 상태에 따라 동일한 버튼 클릭도 다른 반응이 나오기 때문.
     // ex) 매칭 전 매칭 버튼, 게임 중 매칭 버튼 클릭은 다른 반응을 보여야 함.
-    class NotConnected implements connectState {
+    class NotConnected implements ConnectState {
 
         @Override
         public void endGame(Client client) {
@@ -232,14 +350,18 @@ public class Client extends JFrame {
         @Override
         public void requestMatching(Client client) {
             try {
-                bw.write("매칭을 요청했습니다.\n");
+                bw.write("매칭\n");
                 bw.flush();
-                serverChat.append("클라: 매칭중...\n");
-                serverChat.append("매칭 상태가 되었습니다.\n");
-                client.setConnectState(new Matching());
-            }
-            catch(IOException e){
+                serverChat.append("클라: 매칭 중...\n");
 
+                // 상태를 Matching으로 변경
+                client.setConnectState(new Matching());
+
+                // 게임판 표시
+                displayDotAndBoxGame();
+            } catch (IOException e) {
+                e.printStackTrace();
+                serverChat.append("매칭 요청 중 오류가 발생했습니다.\n");
             }
         }
 
@@ -249,7 +371,7 @@ public class Client extends JFrame {
         }
     }
     //매칭 전 상태
-    class Matching implements connectState {
+    class Matching implements ConnectState {
 
         @Override
         public void endGame(Client client) {
@@ -258,20 +380,38 @@ public class Client extends JFrame {
 
         @Override
         public void requestMatching(Client client) {
-            serverChat.append("이미 매칭 중입니다.\n");
+            try{
+                if (connectState.getClass() == new Matching().getClass()) {
+                    bw.write("매칭취소\n");
+                    bw.flush();
+                    serverChat.append("매칭을 취소합니다.\n");
+                    client.setConnectState(new NotConnected());
+                }
+            }
+            catch(IOException e){
+
+            }
         }
 
         @Override
         public void startGame(Client client) {
-            serverChat.append("게잉을 시작합니다. 곧 색을 선택창이 활성화됩니다.\n");
+            serverChat.append("게임을 시작합니다. 곧 색 선택창이 활성화됩니다.\n");
+
             matching.setEnabled(false);
             backTurn.setEnabled(true);
             turn.setEnabled(true);
+
+            // 게임판을 표시
+            client.displayDotAndBoxGame();
+
+
+            // 상태 전환
             client.setConnectState(new InGame());
+
         }
     }
     //매칭 중인 상태, 게임 진행 전 단계.
-    class InGame implements connectState {
+    class InGame implements ConnectState {
 
         @Override
         public void endGame(Client client) {

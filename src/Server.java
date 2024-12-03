@@ -96,7 +96,7 @@ public class Server extends JFrame{
 
                 User user = new User(cs,loginId);
                 users.add(user);
-                server_display.append(user.loginId+"님이 입장하셧습니다.");
+                server_display.append(user.loginId+"님이 입장하셧습니다.\n");
                 //로그인 부분. 로그인할 때 진위여부 파악 기능 추가 예정.
                 user.start();
             }
@@ -131,6 +131,8 @@ public class Server extends JFrame{
         public void run(){
             chatSend(socket);
         }
+
+        //클라이언트 상태 전달 및 게임 진행 중계.
         private void broadCast(String msg){
             for (User u : users) {
                 u.sendMessage(msg);
@@ -146,71 +148,92 @@ public class Server extends JFrame{
             }
         }
 
+        private void processMessage(String msg) {
+            switch (msg) {
+                case "매칭":
+                    handleMatching();
+                    break;
+                case "매칭취소":
+                    handleMatchingCancel();
+                    break;
+                case "게임종료":
+                    handleGameEnd();
+                    break;
+                default:
+                    System.out.println("알 수 없는 메시지: " + msg);
+            }
+        }
+        // 매칭 처리
+        private void handleMatching() {
+            if (waitingRoom.isEmpty()) {
+                broadCast(this.loginId + "님이 대기방에 입장했습니다.\n");
+                server_display.append(this.loginId + "님이 대기방에 입장했습니다.\n");
+                waitingRoom.add(this);
+            } else {
+                User matchedUser = waitingRoom.remove(0);
+                User[] userMatching = {matchedUser, this};
+                broadCast(matchedUser.loginId + "과 " + this.loginId + "님이 게임을 시작했습니다.\n");
+                gameRoom.add(userMatching);
+
+                matchedUser.sendMessage("게임 시작");
+                this.sendMessage("게임 시작");
+            }
+        }
+        // 매칭 취소 처리
+        private void handleMatchingCancel() {
+            synchronized (waitingRoom) {
+                waitingRoom.removeIf(user -> user == this);
+                broadCast(this.loginId + "님이 매칭을 종료했습니다.");
+            }
+        }
+        // 게임 종료 처리
+        private void handleGameEnd() {
+            server_display.append(this.loginId + "님의 게임 중 탈주를 확인했습니다.\n");
+            synchronized (gameRoom) {
+                gameRoom.removeIf(room -> room[0] == this || room[1] == this);
+                broadCast(this.loginId + "님이 게임에서 나갔습니다. 게임 방이 해체되었습니다.");
+            }
+        }
+        // 리소스 정리
+        private void cleanupResources(Socket cs) {
+            try {
+                if (chatSender != null) chatSender.close();
+                if (testReader != null) testReader.close();
+                if (cs != null && !cs.isClosed()) cs.close();
+
+                synchronized (waitingRoom) {
+                    waitingRoom.removeIf(user -> user == this);
+                }
+                synchronized (gameRoom) {
+                    gameRoom.removeIf(room -> room[0] == this || room[1] == this);
+                }
+
+                server_display.append(this.loginId + "님의 클라이언트와의 연결이 종료되었습니다.\n");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
         private void chatSend(Socket cs){
             chatSender = null;
 
             try {
                 chatSender = new BufferedWriter(new OutputStreamWriter(cs.getOutputStream()));
                 testReader = new BufferedReader(new InputStreamReader(cs.getInputStream()));
+                chatSender.write("서버 연결 성공\n");
+                chatSender.flush();
 
-                    try {
-                        chatSender.write("서버 연결 성공\n");
-                        chatSender.flush();
-                        String msg;
-                        while((msg = ((BufferedReader)testReader).readLine()) != null){
-                            if(msg.equals("매칭을 요청했습니다.")){
-                                if(waitingRoom.size() == 0){
-                                    broadCast(this.loginId+"님이 대기방에 입장했습니다.");
-                                    server_display.append(this.loginId+"님이 대기방에 입장했습니다.\n");
-                                    waitingRoom.add(this);
-                                }
-                                else{
-                                    User user = waitingRoom.remove(0);
-                                    User[] userMatching = {user,this};
-                                    broadCast(user.loginId+"과 "+ this.loginId+"님이 게임을 시작했습니다.");
-                                    gameRoom.add(userMatching);
-                                }
-                            }
-                            //매칭버튼을 누르는 경우 매칭방으로 이동. 만약 아무도 매칭방에 없다면 매칭방에서 다른 사람이매칭되기 까지 대기.
-                            //매칭방에 두명 이상 있으면 바로 게임방에 두명을 초대해서 게임을 시작.
+                String msg;
+                while((msg = ((BufferedReader)testReader).readLine()) != null){
+                    processMessage(msg);
+                }
 
-                            else if(msg.equals("게임종료")){
-                                server_display.append(this.loginId+"님의 게임 중 탈주를 확인했습니다.\n");
-                                //gameRoom에 자신이 속한 배열을 찾고 제거하는 기능.
-                                synchronized (gameRoom) {
-                                    // gameRoom을 안전하게 수정하기 위해 동기화
-                                    for (int i = 0; i < gameRoom.size(); i++) {
-                                        User[] room = gameRoom.get(i);
-                                        if (room[0] == this || room[1] == this) {
-                                            // 자신이 포함된 방 찾기
-                                            gameRoom.remove(i);
-                                            //해당 방 제거
-                                            broadCast(this.loginId + "님이 게임에서 나갔습니다. 게임 방이 해체되었습니다.");
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            //한 명이 게임을 나가게 된 경우 게임방은 유지할 필요가 없어 게임방을 삭제함. 유저 둘은 매칭 전 상태로 돌아감.
-                        }
-                    }
-                    catch(EOFException e) {
-                    }
             }
             catch(IOException e){
                 e.printStackTrace();
             }
             finally {
-                try{
-                    if (chatSender != null) ((BufferedWriter) chatSender).close();
-                    if (testReader != null) ((BufferedReader) testReader).close();
-                    if (cs != null && !cs.isClosed()) cs.close();
-                    //완전한 종료로 서버에 다시 원할히 로그인, 연결 가능하도록 하기 위해 close 선택.
-                }
-                catch(IOException e){
-                    System.out.println(e.getMessage());
-                    System.exit(-1);
-                }
+                cleanupResources(cs);
             }
         }
     }
