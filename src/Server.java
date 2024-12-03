@@ -82,30 +82,43 @@ public class Server extends JFrame{
 
         return controlPanel;
     }
-    public void startServer(){
-        try {
-            serverSocket = new ServerSocket(12345);
-            Socket cs = null;
+    public void startServer() {
+        try (ServerSocket serverSocket = new ServerSocket(12345)) {
             server_display.append("서버가 시작되었습니다\n");
-            while(true){
-                cs = serverSocket.accept();
-                ObjectInputStream ois = new ObjectInputStream(cs.getInputStream());
-                LoginData data = (LoginData) ois.readObject();
-                String loginId = data.getId();
-                String loginPw = data.getPw();
 
-                User user = new User(cs,loginId);
-                users.add(user);
-                server_display.append(user.loginId+"님이 입장하셧습니다.\n");
-                //로그인 부분. 로그인할 때 진위여부 파악 기능 추가 예정.
-                user.start();
+            while (true) {
+                Socket cs = serverSocket.accept();
+                try (ObjectInputStream ois = new ObjectInputStream(cs.getInputStream());
+                     BufferedWriter br = new BufferedWriter(new OutputStreamWriter(cs.getOutputStream()))) {
+
+                    LoginData data = (LoginData) ois.readObject();
+                    String loginId = data.getId();
+                    String loginPw = data.getPw();
+                    String mode = data.getMode();
+
+                    server_display.append("로그인 전.\n");
+
+                    if ("로그인".equals(mode)) {
+                        if (userLoginData.containsKey(loginId) && userLoginData.get(loginId).equals(loginPw)) {
+                            User user = new User(cs, loginId);
+                            users.add(user);
+                            br.write("로그인수락\n");
+                            br.flush();
+                            server_display.append("로그인수락.\n");
+
+                            user.start();
+                        } else {
+                            server_display.append("로그인 실패.\n");
+                            br.write("로그인실패\n");
+                            br.flush();
+                        }
+                    }
+                } catch (ClassNotFoundException e) {
+                    server_display.append("데이터 읽기 오류\n");
+                }
             }
-        }
-        catch(IOException e){
-            server_display.append("startServer오류발생\n");
-        }
-        catch(ClassNotFoundException e){
-
+        } catch (IOException e) {
+            server_display.append("startServer 오류 발생\n");
         }
     }
     public void disconnect() {

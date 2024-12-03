@@ -114,44 +114,29 @@ public class Client extends JFrame {
             public void actionPerformed(ActionEvent e) {
                 String idData = login.getText();
                 String pwData = password.getText();
-                LoginData loginData = new LoginData(idData, pwData);
+                LoginData loginData = new LoginData(idData, pwData, "로그인");
 
-                title.setVisible(false);
-                login.setVisible(false);
-                password.setVisible(false);
-                signinButton.setVisible(false);
-                signupButton.setVisible(false);
-                controlPanel.setVisible(true);
+                try (Socket socket = new Socket(address, Integer.parseInt(port));
+                     ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+                     BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-                acceptThread = new Thread(new Runnable() {
+                    oos.writeObject(loginData);
+                    String msg = br.readLine();
+                    serverChat.append(msg + "\n");
 
-                    @Override
-                    public void run() {
-                        while(acceptThread == Thread.currentThread()){
-                            try{
-                                startConnect(loginData);
-                                title.setVisible(true);
-                                login.setVisible(true);
-                                password.setVisible(true);
-                                signinButton.setVisible(true);
-                                signupButton.setVisible(true);
-                                controlPanel.setVisible(false);
-                            }
-                            catch(IOException e){
-                            }
-                            finally {
-                                try{
-                                    acceptThread = null;
-                                    socket.close();
-                                }
-                                catch(IOException e){
+                    if ("로그인수락".equals(msg)) {
+                        title.setVisible(false);
+                        login.setVisible(false);
+                        password.setVisible(false);
+                        signinButton.setVisible(false);
+                        signupButton.setVisible(false);
+                        controlPanel.setVisible(true);
 
-                                }
-                            }
-                        }
+                        Client.this.setConnectState(new Matching());
                     }
-                });
-                acceptThread.start();
+                } catch (IOException ex) {
+                    serverChat.append("로그인 실패함\n");
+                }
             }
         });
         signupButton.addActionListener(new ActionListener() {
@@ -196,20 +181,8 @@ public class Client extends JFrame {
         return controlPanel;
     }
     public void startConnect(LoginData loginData) throws IOException {
-        socket = new Socket(address, Integer.parseInt(port));
-        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-        oos.writeObject(loginData);
-        String msg;
-        br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-        while ((msg = br.readLine()) != null) {
-            if(msg.contains("님이 게임을 시작했습니다.")){
-                startGame();
-            }
-            //매칭 방에 사람이 두명 이상 존재하면 바로 팀 매칭이 됨.
-            serverChat.append(msg+"\n");
-            displayDotAndBoxGame();
-        }
+        startGame();
+        displayDotAndBoxGame();
     }
     private void displayDotAndBoxGame() {
         JPanel gamePanel = new DotAndBoxGamePanel(5);
@@ -337,6 +310,7 @@ public class Client extends JFrame {
         public void endGame(Client client);
         public void requestMatching(Client client);
         public void startGame(Client client);
+        public void login(Client client);
     }
     //연결상태에 따라 진행. 게임 진행을 어느 상태인지에 따라 관리함. -> 상태에 따라 동일한 버튼 클릭도 다른 반응이 나오기 때문.
     // ex) 매칭 전 매칭 버튼, 게임 중 매칭 버튼 클릭은 다른 반응을 보여야 함.
@@ -358,7 +332,7 @@ public class Client extends JFrame {
                 client.setConnectState(new Matching());
 
                 // 게임판 표시
-                displayDotAndBoxGame();
+                //displayDotAndBoxGame();
             } catch (IOException e) {
                 e.printStackTrace();
                 serverChat.append("매칭 요청 중 오류가 발생했습니다.\n");
@@ -368,6 +342,24 @@ public class Client extends JFrame {
         @Override
         public void startGame(Client client) {
             serverChat.append("매칭을 먼저 해야합니다.\n");
+        }
+
+        @Override
+        public void login(Client client) {
+//            try {
+//                bw.write("로그인\n");
+//                bw.flush();
+//                serverChat.append("클라: 매칭 중...\n");
+//
+//                // 상태를 Matching으로 변경
+//                client.setConnectState(new Matching());
+//
+//                // 게임판 표시
+//                displayDotAndBoxGame();
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//                serverChat.append("매칭 요청 중 오류가 발생했습니다.\n");
+//            }
         }
     }
     //매칭 전 상태
@@ -402,11 +394,15 @@ public class Client extends JFrame {
             turn.setEnabled(true);
 
             // 게임판을 표시
-            client.displayDotAndBoxGame();
-
+            //client.displayDotAndBoxGame();
 
             // 상태 전환
             client.setConnectState(new InGame());
+
+        }
+
+        @Override
+        public void login(Client client) {
 
         }
     }
@@ -438,6 +434,11 @@ public class Client extends JFrame {
         public void startGame(Client client) {
             serverChat.append("게임이 이미 진행 중입니다.\n");
         }
+
+        @Override
+        public void login(Client client) {
+
+        }
     }
     //게임 중인 상태.
 
@@ -445,6 +446,6 @@ public class Client extends JFrame {
         String address = "localhost";
         String port = "12345";
         new Client(address, port);
-        new Client(address, port);
+//        new Client(address, port);
     }
 }
