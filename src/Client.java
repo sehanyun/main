@@ -116,18 +116,12 @@ public class Client extends JFrame {
         signinButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                LoginData loginData = makeloginData("로그인");
                 try{
+                    LoginData loginData = makeloginData("로그인");
                     sendLoginData(loginData);
-                    String msg = br.readLine();
-                    serverChat.append(msg + "\n");
+                    String msg = sendResult();
+                    checkSignIn(msg);
                     bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-
-                    if ("로그인수락".equals(msg)) {
-                        login();
-                    } else {
-                        serverChat.append("로그인 실패: " + msg + "\n");
-                    }
                 }
                 catch(IOException e1){
                     System.out.println(e1.getMessage());
@@ -137,47 +131,18 @@ public class Client extends JFrame {
         signupButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                LoginData loginData = makeloginData("회원가입");
                 try{
+                    LoginData loginData = makeloginData("회원가입");
                     sendLoginData(loginData);
-                    String msg = br.readLine();
-                    serverChat.append(msg + "\n");
+                    String msg = sendResult();
+                    checkSignUp(paintPanel,msg);
                     bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-
-                    if ("회원가입성공".equals(msg)) {
-                        JOptionPane.showMessageDialog(paintPanel, "회원가입에 성공했습니다.", "성공!", JOptionPane.PLAIN_MESSAGE);
-                        serverChat.append("회원가입 성공");
-                    } else {
-                        serverChat.append("회원가입 실패: " + msg + "\n");
-                        JOptionPane.showMessageDialog(paintPanel, "회원가입에 실패했습니다.", "실패!", JOptionPane.WARNING_MESSAGE);
-                    }
                 }
-                catch(IOException e1){
-                    System.out.println(e1.getMessage());
-                }
+                catch(IOException e1){System.out.println(e1.getMessage());}
             }
         });
 
         return paintPanel;
-    }
-    public void sendLoginData(LoginData loginData) throws IOException{
-        socket = new Socket(address, Integer.parseInt(port));
-        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-        br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-        oos.writeObject(loginData);
-    }
-    public LoginData makeloginData(String str){
-        String idData = login.getText();
-        String pwData = password.getText();
-        LoginData loginData = new LoginData(idData, pwData, str);
-        return loginData;
-    }
-    public void CheckLoginSuccess(){
-
-    }
-    public void CheckSignUpSuccess(){
-
     }
     public JPanel controlPanel(){
         JPanel controlPanel = new JPanel(new GridLayout(0,4));
@@ -202,6 +167,44 @@ public class Client extends JFrame {
         controlPanel.add(exit);
         return controlPanel;
     }
+
+    public LoginData makeloginData(String str){
+        String idData = login.getText();
+        String pwData = password.getText();
+        LoginData loginData = new LoginData(idData, pwData, str);
+        return loginData;
+    }
+    public void sendLoginData(LoginData loginData) throws IOException{
+        socket = new Socket(address, Integer.parseInt(port));
+        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+        br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+        oos.writeObject(loginData);
+    }
+    public String sendResult() throws IOException{
+        String msg = br.readLine();
+        serverChat.append(msg + "\n");
+        return msg;
+    }
+    public void checkSignIn(String msg) throws IOException{
+        switch(msg){
+            case "로그인수락":login();
+                break;
+            default: serverChat.append("로그인 실패: " + msg + "\n");
+                break;
+        }
+    }
+    public void checkSignUp(JPanel paintPanel, String msg){
+        switch(msg){
+            case "회원가입성공":
+                JOptionPane.showMessageDialog(paintPanel, "회원가입에 성공했습니다.","성공!", JOptionPane.PLAIN_MESSAGE);
+                break;
+            case "회원가입실패":
+                JOptionPane.showMessageDialog(paintPanel, "회원가입에 실패했습니다.","실패!", JOptionPane.WARNING_MESSAGE);
+                break;
+        }
+    }
+
     public void startConnect() throws IOException {
         String msg;
         while ((msg = br.readLine()) != null) {
@@ -213,6 +216,7 @@ public class Client extends JFrame {
             displayDotAndBoxGame();
         }
     }
+
     private void displayDotAndBoxGame() {
         JPanel gamePanel = new DotAndBoxGamePanel(5);
 
@@ -324,18 +328,6 @@ public class Client extends JFrame {
         }
     }
 
-    public void requestMatching(){
-        connectState.requestMatching(this);
-    }
-    public void startGame(){
-        connectState.startGame(this);
-    }
-    public void endGame(){
-        connectState.endGame(this);
-    }
-    public void login() throws IOException{connectState.login(this);}
-    //통신을 통한 상태변경 메소드
-
     interface ConnectState {
         public void endGame(Client client);
         public void requestMatching(Client client);
@@ -365,7 +357,6 @@ public class Client extends JFrame {
         @Override
         public void login(Client client){
             loginSucessConnnect();
-            startAcceptThread();
         }
     }
     //매칭 전 상태
@@ -425,11 +416,23 @@ public class Client extends JFrame {
     }
     //게임 중인 상태.
 
+    public void requestMatching(){
+        connectState.requestMatching(this);
+    }
+    public void startGame(){
+        connectState.startGame(this);
+    }
+    public void endGame(){
+        connectState.endGame(this);
+    }
+    public void login() throws IOException{connectState.login(this);}
+    //통신을 통한 상태변경 메소드
+
     public static void main(String[] args){
         String address = "localhost";
         String port = "12345";
         new Client(address, port);
-//        new Client(address, port);
+        new Client(address, port);
     }
 
     public void loginSucessConnnect(){
@@ -439,8 +442,6 @@ public class Client extends JFrame {
         signinButton.setVisible(false);
         signupButton.setVisible(false);
         controlPanel.setVisible(true);
-    }
-    public void startAcceptThread(){
         acceptThread = new Thread(new Runnable() {
             @Override
             public void run() {
