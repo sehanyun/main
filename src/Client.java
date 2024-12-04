@@ -118,11 +118,7 @@ public class Client extends JFrame {
             public void actionPerformed(ActionEvent e) {
                 LoginData loginData = makeloginData("로그인");
                 try{
-                    Socket socket = new Socket(address, Integer.parseInt(port));
-                    ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                    br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-                    oos.writeObject(loginData);
+                    sendLoginData(loginData);
                     String msg = br.readLine();
                     serverChat.append(msg + "\n");
                     bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
@@ -143,11 +139,7 @@ public class Client extends JFrame {
             public void actionPerformed(ActionEvent e) {
                 LoginData loginData = makeloginData("회원가입");
                 try{
-                    Socket socket = new Socket(address, Integer.parseInt(port));
-                    ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                    br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-                    oos.writeObject(loginData);
+                    sendLoginData(loginData);
                     String msg = br.readLine();
                     serverChat.append(msg + "\n");
                     bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
@@ -168,11 +160,24 @@ public class Client extends JFrame {
 
         return paintPanel;
     }
+    public void sendLoginData(LoginData loginData) throws IOException{
+        socket = new Socket(address, Integer.parseInt(port));
+        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+        br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+        oos.writeObject(loginData);
+    }
     public LoginData makeloginData(String str){
         String idData = login.getText();
         String pwData = password.getText();
         LoginData loginData = new LoginData(idData, pwData, str);
         return loginData;
+    }
+    public void CheckLoginSuccess(){
+
+    }
+    public void CheckSignUpSuccess(){
+
     }
     public JPanel controlPanel(){
         JPanel controlPanel = new JPanel(new GridLayout(0,4));
