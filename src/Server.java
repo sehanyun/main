@@ -115,6 +115,18 @@ public class Server extends JFrame{
                             br.flush();
                         }
                     }
+                    else if("회원가입".equals(mode)){
+                        if(!userLoginData.containsKey(loginId)){
+                            server_display.append("회원가입성공\n");
+                            userLoginData.put(loginId, loginPw);
+                            br.write("회원가입성공\n");
+                            br.flush();
+                        }
+                        else{
+                            br.write("회원가입실패\n");
+                            br.flush();
+                        }
+                    }
             }
         } catch (IOException e) {
             server_display.append("startServer 오류 발생\n");
