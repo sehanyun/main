@@ -115,10 +115,10 @@ public class Client extends JFrame {
                 String idData = login.getText();
                 String pwData = password.getText();
                 LoginData loginData = new LoginData(idData, pwData, "로그인");
-
-                try (Socket socket = new Socket(address, Integer.parseInt(port));
-                     ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                     BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                try{
+                    Socket socket = new Socket(address, Integer.parseInt(port));
+                    ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+                    br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
                     oos.writeObject(loginData);
                     String msg = br.readLine();
@@ -132,10 +132,30 @@ public class Client extends JFrame {
                         signupButton.setVisible(false);
                         controlPanel.setVisible(true);
 
-                        Client.this.setConnectState(new Matching());
+                        //oos.close();
+                        bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                        //setConnectState(new Matching());
+                        //System.out.println(getConnectState());
+                        acceptThread = new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                while(acceptThread == Thread.currentThread()){
+                                    try{
+                                        startConnect(loginData);
+                                    }
+                                    catch(IOException e){
+
+                                    }
+                                }
+                            }
+                        });
+                        acceptThread.start();
+                    } else {
+                        serverChat.append("로그인 실패: " + msg + "\n");
                     }
-                } catch (IOException ex) {
-                    serverChat.append("로그인 실패함\n");
+                }
+                catch(IOException e1){
+                    System.out.println(e1.getMessage());
                 }
             }
         });
@@ -181,8 +201,17 @@ public class Client extends JFrame {
         return controlPanel;
     }
     public void startConnect(LoginData loginData) throws IOException {
-        startGame();
-        displayDotAndBoxGame();
+//        startGame();
+//        displayDotAndBoxGame();
+        String msg;
+        while ((msg = br.readLine()) != null) {
+            if(msg.equals("게임시작")){
+                startGame();
+            }
+            //매칭 방에 사람이 두명 이상 존재하면 바로 팀 매칭이 됨.
+            serverChat.append(msg+"\n");
+            displayDotAndBoxGame();
+        }
     }
     private void displayDotAndBoxGame() {
         JPanel gamePanel = new DotAndBoxGamePanel(5);
@@ -446,6 +475,6 @@ public class Client extends JFrame {
         String address = "localhost";
         String port = "12345";
         new Client(address, port);
-//        new Client(address, port);
+        new Client(address, port);
     }
 }
