@@ -116,9 +116,7 @@ public class Client extends JFrame {
         signinButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String idData = login.getText();
-                String pwData = password.getText();
-                LoginData loginData = new LoginData(idData, pwData, "로그인");
+                LoginData loginData = makeloginData("로그인");
                 try{
                     Socket socket = new Socket(address, Integer.parseInt(port));
                     ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
@@ -143,9 +141,7 @@ public class Client extends JFrame {
         signupButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String idData = login.getText();
-                String pwData = password.getText();
-                LoginData loginData = new LoginData(idData, pwData, "회원가입");
+                LoginData loginData = makeloginData("회원가입");
                 try{
                     Socket socket = new Socket(address, Integer.parseInt(port));
                     ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
@@ -171,6 +167,12 @@ public class Client extends JFrame {
         });
 
         return paintPanel;
+    }
+    public LoginData makeloginData(String str){
+        String idData = login.getText();
+        String pwData = password.getText();
+        LoginData loginData = new LoginData(idData, pwData, str);
+        return loginData;
     }
     public JPanel controlPanel(){
         JPanel controlPanel = new JPanel(new GridLayout(0,4));
@@ -317,7 +319,6 @@ public class Client extends JFrame {
         }
     }
 
-
     public void requestMatching(){
         connectState.requestMatching(this);
     }
@@ -344,7 +345,6 @@ public class Client extends JFrame {
         public void endGame(Client client) {
 
         }
-
         @Override
         public void requestMatching(Client client) {
             try {
@@ -353,14 +353,12 @@ public class Client extends JFrame {
                 serverChat.append("매칭 요청 중 오류가 발생했습니다.\n");
             }
         }
-
         @Override
         public void startGame(Client client) {
             serverChat.append("매칭을 먼저 해야합니다.\n");
         }
-
         @Override
-        public void login(Client client) throws IOException{
+        public void login(Client client){
             loginSucessConnnect();
             startAcceptThread();
         }
@@ -426,7 +424,7 @@ public class Client extends JFrame {
         String address = "localhost";
         String port = "12345";
         new Client(address, port);
-        new Client(address, port);
+//        new Client(address, port);
     }
 
     public void loginSucessConnnect(){
