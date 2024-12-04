@@ -161,13 +161,27 @@ public class Server extends JFrame{
                 u.sendMessage(msg);
             }
         }
-        private void sendMessage(String msg){
-            try{
-                chatSender.write(msg+"\n");
+
+        private void chatSend(Socket cs){
+            //chatSender = null;
+
+            try {
+                chatSender = new BufferedWriter(new OutputStreamWriter(cs.getOutputStream()));
+                testReader = new BufferedReader(new InputStreamReader(cs.getInputStream()));
+                chatSender.write("서버 연결 성공\n");
                 chatSender.flush();
+
+                String msg;
+                while((msg = ((BufferedReader)testReader).readLine()) != null){
+                    processMessage(msg);
+                }
+
             }
             catch(IOException e){
-
+                e.printStackTrace();
+            }
+            finally {
+                cleanupResources(cs);
             }
         }
 
@@ -239,26 +253,13 @@ public class Server extends JFrame{
             }
         }
 
-        private void chatSend(Socket cs){
-            //chatSender = null;
-
-            try {
-                chatSender = new BufferedWriter(new OutputStreamWriter(cs.getOutputStream()));
-                testReader = new BufferedReader(new InputStreamReader(cs.getInputStream()));
-                chatSender.write("서버 연결 성공\n");
+        private void sendMessage(String msg){
+            try{
+                chatSender.write(msg+"\n");
                 chatSender.flush();
-
-                String msg;
-                while((msg = ((BufferedReader)testReader).readLine()) != null){
-                    processMessage(msg);
-                }
-
             }
             catch(IOException e){
-                e.printStackTrace();
-            }
-            finally {
-                cleanupResources(cs);
+
             }
         }
     }

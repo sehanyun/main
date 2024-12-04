@@ -72,6 +72,11 @@ public class Client extends JFrame {
         password.setBounds(400, 325, 140, 25);
         signinButton.setBounds(540, 300, 70, 25);
         signupButton.setBounds(540, 325, 70, 25);
+        paintPanel.add(title);
+        paintPanel.add(login);
+        paintPanel.add(password);
+        paintPanel.add(signinButton);
+        paintPanel.add(signupButton);
 
         login.addFocusListener(new FocusAdapter() {
             @Override
@@ -123,33 +128,10 @@ public class Client extends JFrame {
                     oos.writeObject(loginData);
                     String msg = br.readLine();
                     serverChat.append(msg + "\n");
+                    bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 
                     if ("로그인수락".equals(msg)) {
-                        title.setVisible(false);
-                        login.setVisible(false);
-                        password.setVisible(false);
-                        signinButton.setVisible(false);
-                        signupButton.setVisible(false);
-                        controlPanel.setVisible(true);
-
-                        //oos.close();
-                        bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-                        //setConnectState(new Matching());
-                        //System.out.println(getConnectState());
-                        acceptThread = new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                while(acceptThread == Thread.currentThread()){
-                                    try{
-                                        startConnect(loginData);
-                                    }
-                                    catch(IOException e){
-
-                                    }
-                                }
-                            }
-                        });
-                        acceptThread.start();
+                        login(loginData);
                     } else {
                         serverChat.append("로그인 실패: " + msg + "\n");
                     }
@@ -170,11 +152,6 @@ public class Client extends JFrame {
             }
         });
 
-        paintPanel.add(title);
-        paintPanel.add(login);
-        paintPanel.add(password);
-        paintPanel.add(signinButton);
-        paintPanel.add(signupButton);
         return paintPanel;
     }
     public JPanel controlPanel(){
@@ -201,8 +178,6 @@ public class Client extends JFrame {
         return controlPanel;
     }
     public void startConnect(LoginData loginData) throws IOException {
-//        startGame();
-//        displayDotAndBoxGame();
         String msg;
         while ((msg = br.readLine()) != null) {
             if(msg.equals("게임시작")){
@@ -334,12 +309,70 @@ public class Client extends JFrame {
     public void endGame(){
         connectState.endGame(this);
     }
+    public void login(LoginData data) throws IOException{
+        connectState.login(this, data);
+    }
+    public void loginSucessConnnect(){
+        title.setVisible(false);
+        login.setVisible(false);
+        password.setVisible(false);
+        signinButton.setVisible(false);
+        signupButton.setVisible(false);
+        controlPanel.setVisible(true);
+    }
+    public void startAcceptThread(LoginData data){
+        acceptThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(acceptThread == Thread.currentThread()){
+                    try{
+                        startConnect(data);
+                    }
+                    catch(IOException e){
+
+                    }
+                }
+            }
+        });
+        acceptThread.start();
+    }
+    public void notConnectedToRequestMatching() throws IOException{
+        bw.write("매칭\n");
+        bw.flush();
+        serverChat.append("클라: 매칭 중...\n");
+        setConnectState(new Matching());
+    }
+    public void requestMatchingToNotConnected() throws IOException{
+        if (connectState.getClass() == new Matching().getClass()) {
+            bw.write("매칭취소\n");
+            bw.flush();
+            serverChat.append("매칭을 취소합니다.\n");
+            setConnectState(new NotConnected());
+        }
+    }
+    public void requestMatchingToInGame(){
+        serverChat.append("게임을 시작합니다. 곧 색 선택창이 활성화됩니다.\n");
+        matching.setEnabled(false);
+        backTurn.setEnabled(true);
+        turn.setEnabled(true);
+        // 상태 전환
+        setConnectState(new InGame());
+    }
+    public void inGameToNotConnected() throws IOException{
+        serverChat.append("게임이 종료되었습니다.");
+        setConnectState(new NotConnected());
+        matching.setEnabled(true);
+        backTurn.setEnabled(false);
+        turn.setEnabled(false);
+        bw.write("게임종료\n");
+        bw.flush();
+    }
 
     interface ConnectState {
         public void endGame(Client client);
         public void requestMatching(Client client);
         public void startGame(Client client);
-        public void login(Client client);
+        public void login(Client client, LoginData data) throws IOException;
     }
     //연결상태에 따라 진행. 게임 진행을 어느 상태인지에 따라 관리함. -> 상태에 따라 동일한 버튼 클릭도 다른 반응이 나오기 때문.
     // ex) 매칭 전 매칭 버튼, 게임 중 매칭 버튼 클릭은 다른 반응을 보여야 함.
@@ -353,17 +386,8 @@ public class Client extends JFrame {
         @Override
         public void requestMatching(Client client) {
             try {
-                bw.write("매칭\n");
-                bw.flush();
-                serverChat.append("클라: 매칭 중...\n");
-
-                // 상태를 Matching으로 변경
-                client.setConnectState(new Matching());
-
-                // 게임판 표시
-                //displayDotAndBoxGame();
+                notConnectedToRequestMatching();
             } catch (IOException e) {
-                e.printStackTrace();
                 serverChat.append("매칭 요청 중 오류가 발생했습니다.\n");
             }
         }
@@ -374,21 +398,9 @@ public class Client extends JFrame {
         }
 
         @Override
-        public void login(Client client) {
-//            try {
-//                bw.write("로그인\n");
-//                bw.flush();
-//                serverChat.append("클라: 매칭 중...\n");
-//
-//                // 상태를 Matching으로 변경
-//                client.setConnectState(new Matching());
-//
-//                // 게임판 표시
-//                displayDotAndBoxGame();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//                serverChat.append("매칭 요청 중 오류가 발생했습니다.\n");
-//            }
+        public void login(Client client, LoginData data) throws IOException{
+            loginSucessConnnect();
+            startAcceptThread(data);
         }
     }
     //매칭 전 상태
@@ -402,55 +414,30 @@ public class Client extends JFrame {
         @Override
         public void requestMatching(Client client) {
             try{
-                if (connectState.getClass() == new Matching().getClass()) {
-                    bw.write("매칭취소\n");
-                    bw.flush();
-                    serverChat.append("매칭을 취소합니다.\n");
-                    client.setConnectState(new NotConnected());
-                }
+                requestMatchingToNotConnected();
             }
-            catch(IOException e){
-
-            }
+            catch(IOException e){System.out.println(e.getMessage());}
         }
 
         @Override
-        public void startGame(Client client) {
-            serverChat.append("게임을 시작합니다. 곧 색 선택창이 활성화됩니다.\n");
-
-            matching.setEnabled(false);
-            backTurn.setEnabled(true);
-            turn.setEnabled(true);
-
-            // 게임판을 표시
-            //client.displayDotAndBoxGame();
-
-            // 상태 전환
-            client.setConnectState(new InGame());
-
-        }
+        public void startGame(Client client) {requestMatchingToInGame();}
 
         @Override
-        public void login(Client client) {
+        public void login(Client client, LoginData data) {
 
         }
+
     }
     //매칭 중인 상태, 게임 진행 전 단계.
     class InGame implements ConnectState {
 
         @Override
         public void endGame(Client client) {
-            serverChat.append("게임이 종료되었습니다.");
-            client.setConnectState(new NotConnected());
             try{
-                matching.setEnabled(true);
-                backTurn.setEnabled(false);
-                turn.setEnabled(false);
-                bw.write("게임종료\n");
-                bw.flush();
+                inGameToNotConnected();
             }
             catch(IOException e){
-
+                System.out.println(e.getMessage());
             }
         }
 
@@ -465,9 +452,11 @@ public class Client extends JFrame {
         }
 
         @Override
-        public void login(Client client) {
+        public void login(Client client, LoginData data) {
 
         }
+
+
     }
     //게임 중인 상태.
 
