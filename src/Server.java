@@ -8,6 +8,8 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
+import java.util.Random;
+
 
 public class Server extends JFrame{
 
@@ -208,28 +210,47 @@ public class Server extends JFrame{
                 case "게임종료":
                     handleGameEnd();
                     break;
+                case "선 확정":
+                    handleTurnEnd(msg);  // 선 확정 메시지 처리
+                    break;
                 default:
                     System.out.println("알 수 없는 메시지: " + msg);
             }
         }
+        
+        private void updateGameBoard(String lineInfo) {
+            // 서버에서 게임판을 업데이트하는 로직 (선 확정)
+            // 예를 들어, 선을 그린 사용자와 함께 선 정보를 게임판에 반영합니다.
+            server_display.append("게임판 업데이트: " + lineInfo + "\n");
+            // 다른 클라이언트들에게 게임판을 업데이트된 내용을 전송
+            broadCast("게임판 업데이트: " + lineInfo);
+        }
+        
         // 매칭 처리
         private void handleMatching() {
             if (waitingRoom.isEmpty()) {
                 broadCast(this.loginId + "님이 대기방에 입장했습니다.\n");
                 server_display.append(this.loginId + "님이 대기방에 입장했습니다.\n");
                 waitingRoom.add(this);
-                System.out.println(waitingRoom);
             } else {
                 User matchedUser = waitingRoom.remove(0);
                 User[] userMatching = {matchedUser, this};
-                broadCast(matchedUser.loginId + "과 " + this.loginId + "님이 게임을 시작했습니다.\n");
                 gameRoom.add(userMatching);
-                System.out.println(gameRoom);
 
-                matchedUser.sendMessage("게임시작");
-                this.sendMessage("게임시작");
+                // 첫 번째 턴 주인 무작위 선택
+                User firstTurnOwner = getRandomTurnOwner(userMatching);
+
+                // 턴 주인을 알려주기
+                matchedUser.sendMessage("게임시작 - 첫 번째 턴 주인: " + firstTurnOwner.loginId);
+                this.sendMessage("게임시작 - 첫 번째 턴 주인: " + firstTurnOwner.loginId);
             }
         }
+        // 무작위로 첫 번째 턴 주인 결정
+        private User getRandomTurnOwner(User[] userMatching) {
+            Random random = new Random();
+            return userMatching[random.nextInt(2)]; // 두 사용자 중 무작위로 선택
+        }
+        
         // 매칭 취소 처리
         private void handleMatchingCancel() {
             synchronized (waitingRoom) {
@@ -245,6 +266,14 @@ public class Server extends JFrame{
                 broadCast(this.loginId + "님이 게임에서 나갔습니다. 게임 방이 해체되었습니다.");
             }
         }
+        
+        private void handleTurnEnd(String lineInfo) {
+            // 선 정보 수신 후 게임판 업데이트
+            broadCast("선 확정: " + lineInfo);
+            // 게임판을 업데이트하는 로직 추가
+            updateGameBoard(lineInfo);
+        }
+        
         // 리소스 정리
         private void cleanupResources(Socket cs) {
             try {
