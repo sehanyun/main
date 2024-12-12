@@ -244,44 +244,108 @@ public class Client extends JFrame {
     // DotAndBoxGamePanel 클래스
     class DotAndBoxGamePanel extends JPanel {
         private int gridSize;
-        private boolean[][] horizontalLines;
-        private boolean[][] verticalLines;
-        private boolean isPlayerTurn;  // 현재 플레이어 턴인지 여부
+        private boolean[][] confirmedHorizontalLines;
+        private boolean[][] confirmedVerticalLines;
+        private String[][] boxOwner;  // 박스를 완성한 사람 ID
+        private String currentPlayerID; // 현재 플레이어 ID
+        private int[] currentLine; // [type, row, col] - type: 0=horizontal, 1=vertical
 
         public DotAndBoxGamePanel(int gridSize) {
             this.gridSize = gridSize;
-            this.horizontalLines = new boolean[gridSize][gridSize - 1];
-            this.verticalLines = new boolean[gridSize - 1][gridSize];
+            this.confirmedHorizontalLines = new boolean[gridSize][gridSize - 1];
+            this.confirmedVerticalLines = new boolean[gridSize - 1][gridSize];
+            this.boxOwner = new String[gridSize - 1][gridSize - 1];  // 각 박스를 만든 사람의 ID 저장
+            this.currentLine = new int[]{-1, -1, -1}; // No line selected initially
+
             setPreferredSize(new Dimension(500, 500));
             setBackground(Color.WHITE);
-            isPlayerTurn = true;  // 처음에 플레이어 턴으로 설정
 
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    if (isPlayerTurn) {  // 게임이 진행 중일 때만 선을 선택할 수 있음//xxxxxx
-                        handleMouseClick(e.getX(), e.getY());
-                    }
+                    handleMouseClick(e.getX(), e.getY());
                 }
             });
         }
 
         private void handleMouseClick(int x, int y) {
-            // 클릭된 위치에서 가장 가까운 선을 찾아서 활성화
             int dotSpacing = 50;
             int row = (y - 50) / dotSpacing;
             int col = (x - 50) / dotSpacing;
 
-            // 클릭된 곳에서 선이 유효한지 확인하고 그리기
-            if (row >= 0 && row < gridSize - 1 && col >= 0 && col < gridSize - 1) {
-                if (horizontalLines[row][col] == false) {
-                    horizontalLines[row][col] = true;
-                    repaint();
+            // Check and update horizontal lines
+            if (row >= 0 && row < gridSize && col >= 0 && col < gridSize - 1) {
+                int xStart = 50 + col * dotSpacing;
+                int yStart = 50 + row * dotSpacing;
+
+                if (Math.abs(y - yStart) <= 10 && Math.abs(x - xStart - dotSpacing / 2) <= 10) {
+                    selectLine(0, row, col);
+                    return;
                 }
             }
 
-            // 현재 선을 그린 후, 턴 종료 버튼을 클릭할 수 있도록 처리
-            turn.setEnabled(true);
+            // Check and update vertical lines
+            if (row >= 0 && row < gridSize - 1 && col >= 0 && col < gridSize) {
+                int xStart = 50 + col * dotSpacing;
+                int yStart = 50 + row * dotSpacing;
+
+                if (Math.abs(x - xStart) <= 10 && Math.abs(y - yStart - dotSpacing / 2) <= 10) {
+                    selectLine(1, row, col);
+                    return;
+                }
+            }
+        }
+
+        private void selectLine(int type, int row, int col) {
+            // Update current line
+            currentLine[0] = type;
+            currentLine[1] = row;
+            currentLine[2] = col;
+
+            // Check if any box is completed
+            checkForCompletedBox(row, col);
+
+            // Repaint to reflect temporary selection and box updates
+            repaint();
+        }
+
+        private void checkForCompletedBox(int row, int col) {
+            // Check for horizontal box completion (top-right or bottom-left)
+            if (row < gridSize - 1 && col < gridSize - 1) {
+                if (confirmedHorizontalLines[row][col] && confirmedHorizontalLines[row + 1][col]
+                        && confirmedVerticalLines[row][col] && confirmedVerticalLines[row][col + 1]) {
+                    boxOwner[row][col] = currentPlayerID;  // Mark this box as completed by the current player
+                    currentPlayerID = currentPlayerID.equals("Player1") ? "Player2" : "Player1"; // Switch player
+                    return;  // Once a box is completed, stop further processing in the current turn
+                }
+            }
+        }
+
+        public void setCurrentPlayerID(String id) {
+            this.currentPlayerID = id;
+        }
+
+        public void confirmLine() {
+            // Check if there's a selected line
+            if (currentLine[0] != -1) {
+                if (currentLine[0] == 0) { // Horizontal line
+                    int row = currentLine[1];
+                    int col = currentLine[2];
+                    confirmedHorizontalLines[row][col] = true; // Mark the line as confirmed
+                } else if (currentLine[0] == 1) { // Vertical line
+                    int row = currentLine[1];
+                    int col = currentLine[2];
+                    confirmedVerticalLines[row][col] = true; // Mark the line as confirmed
+                }
+            }
+
+            // Reset the temporary selection
+            currentLine[0] = -1;
+            currentLine[1] = -1;
+            currentLine[2] = -1;
+
+            // Repaint the panel to update the visuals
+            repaint();
         }
 
         @Override
@@ -291,40 +355,97 @@ public class Client extends JFrame {
             int dotSpacing = 50;
             g.setColor(Color.BLACK);
 
-            // 그리드 점 그리기
+            // Draw dots
             for (int i = 0; i < gridSize; i++) {
                 for (int j = 0; j < gridSize; j++) {
                     int x = 50 + j * dotSpacing;
                     int y = 50 + i * dotSpacing;
-                    g.fillOval(x - 5, y - 5, 10, 10);  // 점 그리기
+                    g.fillOval(x - 5, y - 5, 10, 10);
                 }
             }
 
-            // 수평선 그리기
+            // Draw confirmed horizontal lines
             for (int i = 0; i < gridSize; i++) {
                 for (int j = 0; j < gridSize - 1; j++) {
-                    if (horizontalLines[i][j]) {
+                    if (confirmedHorizontalLines[i][j]) {
                         int x1 = 50 + j * dotSpacing;
                         int y1 = 50 + i * dotSpacing;
                         int x2 = 50 + (j + 1) * dotSpacing;
                         int y2 = 50 + i * dotSpacing;
-                        g.drawLine(x1, y1, x2, y2);  // 수평선 그리기
+                        g.drawLine(x1, y1, x2, y2);
                     }
                 }
             }
 
-            // 수직선 그리기
+            // Draw confirmed vertical lines
             for (int i = 0; i < gridSize - 1; i++) {
                 for (int j = 0; j < gridSize; j++) {
-                    if (verticalLines[i][j]) {
+                    if (confirmedVerticalLines[i][j]) {
                         int x1 = 50 + j * dotSpacing;
                         int y1 = 50 + i * dotSpacing;
                         int x2 = 50 + j * dotSpacing;
                         int y2 = 50 + (i + 1) * dotSpacing;
-                        g.drawLine(x1, y1, x2, y2);  // 수직선 그리기
+                        g.drawLine(x1, y1, x2, y2);
                     }
                 }
             }
+
+            // Draw box owners
+            for (int i = 0; i < gridSize - 1; i++) {
+                for (int j = 0; j < gridSize - 1; j++) {
+                    if (boxOwner[i][j] != null) {
+                        int x = 50 + j * dotSpacing;
+                        int y = 50 + i * dotSpacing;
+                        g.drawString(boxOwner[i][j], x + dotSpacing / 4, y + dotSpacing / 2);
+                    }
+                }
+            }
+
+            // Draw temporary selected line
+            if (currentLine[0] != -1) {
+                g.setColor(Color.RED); // Temporary line color
+                if (currentLine[0] == 0) {
+                    int row = currentLine[1];
+                    int col = currentLine[2];
+                    int x1 = 50 + col * dotSpacing;
+                    int y1 = 50 + row * dotSpacing;
+                    int x2 = 50 + (col + 1) * dotSpacing;
+                    int y2 = 50 + row * dotSpacing;
+                    g.drawLine(x1, y1, x2, y2);
+                } else {
+                    int row = currentLine[1];
+                    int col = currentLine[2];
+                    int x1 = 50 + col * dotSpacing;
+                    int y1 = 50 + row * dotSpacing;
+                    int x2 = 50 + col * dotSpacing;
+                    int y2 = 50 + (row + 1) * dotSpacing;
+                    g.drawLine(x1, y1, x2, y2);
+                }
+            }
+        }
+    
+
+
+        public GameState getGameState() {
+            GameState gameState = new GameState(gridSize);
+            gameState.horizontalLines = confirmedHorizontalLines;
+            gameState.verticalLines = confirmedVerticalLines;
+            return gameState;
+        }
+
+        public void setGameState(GameState gameState) {
+            this.confirmedHorizontalLines = gameState.horizontalLines;
+            this.confirmedVerticalLines = gameState.verticalLines;
+            repaint(); // 보드 상태를 다시 그리기
+        }
+    }
+    public class GameState implements Serializable {
+        public boolean[][] horizontalLines;
+        public boolean[][] verticalLines;
+
+        public GameState(int gridSize) {
+            horizontalLines = new boolean[gridSize][gridSize - 1];
+            verticalLines = new boolean[gridSize - 1][gridSize];
         }
     }
 
@@ -404,7 +525,18 @@ public class Client extends JFrame {
 
         @Override
         public void startGame(Client client) {
-            serverChat.append("게임이 이미 진행 중입니다.\n");
+        	 // 서버에서 받은 첫 번째 턴 주인 정보 처리
+            String firstTurnOwner = receiveFirstTurnOwner();
+
+            // 첫 번째 턴 주인에게만 "턴 종료" 버튼 활성화
+            if (firstTurnOwner.equals(login.getText())) {
+                turn.setEnabled(true); // 첫 번째 턴 주인에게만 활성화
+            } else {
+                turn.setEnabled(false); // 나머지 플레이어는 비활성화
+            }
+
+            // 게임 화면 및 초기화
+            displayDotAndBoxGame();
         }
 
         @Override
@@ -487,6 +619,29 @@ public class Client extends JFrame {
         turn.setEnabled(false);
         bw.write("게임종료\n");
         bw.flush();
+    }
+    
+ // 서버로부터 첫 번째 턴 주인 정보를 받는 메서드
+    private String receiveFirstTurnOwner() {
+        try {
+            // 서버에서 첫 번째 턴 주인 정보 받기
+            String msg = br.readLine();
+            return msg.split(":")[1].trim(); // "게임시작 - 첫 번째 턴 주인: <user>"에서 <user> 부분만 추출
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+    
+    
+    
+    private void sendLineToServer(String lineInfo) {
+        try {
+            bw.write(lineInfo + "\n");
+            bw.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
     //상태에 따른 로직 메소드
 }
